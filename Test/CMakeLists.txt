@@ -12,12 +12,12 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(googletest)
 
-add_executable(tensor_tests
-    tensor_core_test.cpp
-    arithmetic_test.cpp
-    autograd_test.cpp
-    arena_test.cpp
-    nn_test.cpp
+add_executable(tests
+    test_tensorcore.cpp
+    test_arithmetic.cpp
+    test_autograd.cpp
+    test_arena.cpp
+    test_nn.cpp
 )
 
 target_link_libraries(tensor_tests
