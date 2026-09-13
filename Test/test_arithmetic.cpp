@@ -229,7 +229,7 @@ TEST_F(ArithmeticTest, TC_Arithmetic_007)
 }
 
 // TC-Arithmetic-008  MatMul_Invalid
-// 代码设计拒绝向量与矩阵乘法 (Tensor.cpp: line)
+// 代码设计拒绝向量与矩阵乘法 (Tensor.cpp: line 442)
 TEST_F(ArithmeticTest, TC_Arithmetic_008)
 {
     // (2,3)·(2,2)
