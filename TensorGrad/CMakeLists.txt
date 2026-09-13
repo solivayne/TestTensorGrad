@@ -70,3 +70,11 @@ FetchContent_MakeAvailable(googlebenchmark)
 add_executable(tensor_bench bench/tensor_bench.cpp)
 target_link_libraries(tensor_bench PRIVATE engine benchmark::benchmark_main)
 set_target_properties(tensor_bench PROPERTIES LINKER_LANGUAGE CUDA)
+
+enable_testing()
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../Test/CMakeLists.txt")
+    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../Test"
+                     "${CMAKE_CURRENT_BINARY_DIR}/Test")
+else()
+    add_subdirectory(Test)
+endif()
