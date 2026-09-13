@@ -301,8 +301,11 @@ Tensor Tensor::operator+(const Tensor &other) const
     size_t res_size = result.size;
 
     // check if broadcasting occured
-    bool isAbroad = (this->size != res_size);
-    bool isBbroad = (other.size != res_size);
+    // bool isAbroad = (this->size != res_size);
+    // bool isBbroad = (other.size != res_size);
+    // using strides to check if broadcast was happen
+    bool isAbroad = (broadA.strides != result.strides);
+    bool isBbroad = (broadB.strides != result.strides);
 
     std::vector<int> resultStrides = result.strides;
     std::vector<int> broadAStrides = broadA.strides;
@@ -438,6 +441,10 @@ Tensor Tensor::operator*(const Tensor &other) const
 {
     if (this->device != other.device)
         throw std::runtime_error("Tensors must be on same device to multiply.");
+
+    // add rank check to avoid shape.size() - 2 which is an invalid operate
+    if (shape.size() < 2 || other.shape.size() < 2)
+        throw std::runtime_error("MatMul requires rank >= 2.");
 
     int colsA = shape[shape.size() - 1];
     int rowsA = shape[shape.size() - 2];
@@ -666,8 +673,11 @@ Tensor Tensor::operator-(const Tensor &other) const
     size_t res_size = result.size;
 
     // check if broadcasting occured
-    bool isAbroad = (this->size != res_size);
-    bool isBbroad = (other.size != res_size);
+    // bool isAbroad = (this->size != res_size);
+    // bool isBbroad = (other.size != res_size);
+    // using strides to check if broadcast was happen
+    bool isAbroad = (broadA.strides != result.strides);
+    bool isBbroad = (broadB.strides != result.strides);
 
     std::vector<int> resultStrides = result.strides;
     std::vector<int> broadAStrides = broadA.strides;
@@ -696,7 +706,7 @@ Tensor Tensor::operator-(const Tensor &other) const
         // scalar tail
         for (long long i = aligned_len; i < total_len; i++)
         {
-            ptrRes[i] = ptrA[i] + ptrB[i];
+            ptrRes[i] = ptrA[i] - ptrB[i];
         }
     }
     else
