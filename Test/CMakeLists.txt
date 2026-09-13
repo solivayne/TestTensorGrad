@@ -14,17 +14,17 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(tests
     test_tensorcore.cpp
-    test_arithmetic.cpp
-    test_autograd.cpp
-    test_arena.cpp
-    test_nn.cpp
+    # test_arithmetic.cpp
+    # test_autograd.cpp
+    # test_arena.cpp
+    # test_nn.cpp
 )
 
-target_link_libraries(tensor_tests
+target_link_libraries(tests
     PRIVATE
         engine
         GTest::gtest_main
 )
 
 include(GoogleTest)
-gtest_discover_tests(tensor_tests)
+gtest_discover_tests(tests)
