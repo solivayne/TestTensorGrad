@@ -145,3 +145,152 @@ TEST_F(ArithmeticTest, TC_Arithmetic_005)
     EXPECT_THROW(a * g, std::runtime_error)
         << "[TC-Arithmetic-005] Possible issue: device guard in Tensor::operator*.";
 }
+
+// TC-Arithmetic-006  MatMul
+TEST_F(ArithmeticTest, TC_Arithmetic_006)
+{
+    Tensor A = make({1, 2, 3, 4}, {2, 2});
+    Tensor B = make({5, 6, 7, 8}, {2, 2});
+    Tensor C = A * B;
+    ASSERT_EQ(C.shape, (std::vector<int>{2, 2}))
+        << "[TC-Arithmetic-006] Possible issue: result shape in Tensor::operator*.";
+    const float e1[] = {19, 22, 43, 50};
+    for (int i = 0; i < 4; i++)
+        EXPECT_EQ(C.data[i], e1[i])
+            << "[TC-Arithmetic-006] Possible issue: accumulation in Tensor::operator*.";
+
+    Tensor M = make({1, 2, 3, 4, 5, 6}, {2, 3});
+    Tensor I3 = make({1, 0, 0, 0, 1, 0, 0, 0, 1}, {3, 3});
+    Tensor MI = M * I3;
+    for (int i = 0; i < 6; i++)
+        EXPECT_EQ(MI.data[i], static_cast<float>(i + 1))
+            << "[TC-Arithmetic-006] Possible issue: indexing in Tensor::operator* (identity).";
+
+    const int m = 3, k = 5, n = 7;
+    std::vector<float> av(m * k), bv(k * n);
+    for (int i = 0; i < m * k; i++)
+        av[i] = static_cast<float>((i * 7) % 11 - 5);
+    for (int i = 0; i < k * n; i++)
+        bv[i] = static_cast<float>((i * 5) % 13 - 6);
+    Tensor P = make(av, {m, k});
+    Tensor Q = make(bv, {k, n});
+    Tensor R = P * Q;
+    std::vector<float> ref = refMatmul(av, bv, m, k, n);
+    ASSERT_EQ(R.shape, (std::vector<int>{m, n}));
+    for (int i = 0; i < m * n; i++)
+        EXPECT_EQ(R.data[i], ref[i])
+            << "[TC-Arithmetic-006] Possible issue: block boundary / AVX tail in Tensor::operator*.";
+}
+
+// TC-Arithmetic-007  MatMul_Transpose
+TEST_F(ArithmeticTest, TC_Arithmetic_007)
+{
+
+    Tensor p = make({1, 2, 3, 4, 5, 6}, {2, 3});
+    Tensor pt = p.transpose(); // (3,2) strides {1,3}
+    Tensor I2 = make({1, 0, 0, 1}, {2, 2});
+    Tensor L = pt * I2;
+    const float el[] = {1, 4, 2, 5, 3, 6};
+    for (int i = 0; i < 6; i++)
+        EXPECT_EQ(L.data[i], el[i])
+            << "[TC-Arithmetic-007] Possible issue: left-operand strides in Tensor::operator*.";
+
+    Tensor A = make({1, 2, 3, 4, 5, 6}, {2, 3});
+    Tensor W = make({1, 2, 3, 4, 5, 6}, {2, 3});
+    Tensor Wt = W.transpose(); // (3,2) [1,4,2,5,3,6]
+    Tensor R = A * Wt;
+    std::vector<float> ref = refMatmul({1, 2, 3, 4, 5, 6}, {1, 4, 2, 5, 3, 6}, 2, 3, 2);
+    for (int i = 0; i < 4; i++)
+        EXPECT_EQ(R.data[i], ref[i])
+            << "[TC-Arithmetic-007] Possible issue: right-operand strides in Tensor::operator*.";
+
+    // batch mat mul
+    std::vector<float> av(12), bv(12);
+    for (int i = 0; i < 12; i++)
+    {
+        av[i] = static_cast<float>(i + 1);
+        bv[i] = static_cast<float>(12 - i);
+    }
+    Tensor BA = make(av, {2, 2, 3});
+    Tensor BB = make(bv, {2, 3, 2});
+    Tensor BC = BA * BB;
+    ASSERT_EQ(BC.shape, (std::vector<int>{2, 2, 2}))
+        << "[TC-Arithmetic-007] Possible issue: batch result shape in Tensor::operator*.";
+    for (int b = 0; b < 2; b++)
+    {
+        std::vector<float> sa(av.begin() + b * 6, av.begin() + b * 6 + 6);
+        std::vector<float> sb(bv.begin() + b * 6, bv.begin() + b * 6 + 6);
+        std::vector<float> rb = refMatmul(sa, sb, 2, 3, 2);
+        for (int i = 0; i < 4; i++)
+            EXPECT_EQ(BC.data[b * 4 + i], rb[i])
+                << "[TC-Arithmetic-007] Possible issue: batch offset (batch " << b
+                << ") in Tensor::operator*.";
+    }
+}
+
+// TC-Arithmetic-008  MatMul_Invalid
+// 代码设计拒绝向量与矩阵乘法 (Tensor.cpp: line)
+TEST_F(ArithmeticTest, TC_Arithmetic_008)
+{
+    // (2,3)·(2,2)
+    Tensor A = make({1, 2, 3, 4, 5, 6}, {2, 3});
+    Tensor B = make({1, 2, 3, 4}, {2, 2});
+    EXPECT_THROW(A * B, std::runtime_error)
+        << "[TC-Arithmetic-008] Possible issue: inner-dimension check in Tensor::operator*.";
+
+    // (2, )·(1, )
+    Tensor v = make({1, 2}, {2});
+    Tensor s = make({1}, {1});
+    EXPECT_THROW(v * B, std::runtime_error)
+        << "[TC-Arithmetic-008] Possible issue: rank check in Tensor::operator* (rank-1 lhs).";
+    EXPECT_THROW(B * v, std::runtime_error)
+        << "[TC-Arithmetic-008] Possible issue: rank check in Tensor::operator* (rank-1 rhs).";
+    EXPECT_THROW(s * B, std::runtime_error)
+        << "[TC-Arithmetic-008] Possible issue: rank check in Tensor::operator* (single-element lhs).";
+}
+
+// TC-Arithmetic-009  UnaryOps
+TEST_F(ArithmeticTest, TC_Arithmetic_009)
+{
+    // pow for integer
+    Tensor x = make({-3, -1, 0, 2, 5}, {5});
+    Tensor sq = x.pow(2.0f);
+    const float esq[] = {9, 1, 0, 4, 25};
+    for (int i = 0; i < 5; i++)
+        EXPECT_EQ(sq.data[i], esq[i])
+            << "[TC-Arithmetic-009] Possible issue: integer exponent in Tensor::pow.";
+
+    // pow for decimal
+    Tensor y = make({1, 4, 9, 16}, {4});
+    Tensor rt = y.pow(0.5f);
+    for (int i = 0; i < 4; i++)
+        EXPECT_FLOAT_EQ(rt.data[i], static_cast<float>(i + 1))
+            << "[TC-Arithmetic-009] Possible issue: non-integer exponent in Tensor::pow.";
+
+    // relu
+    Tensor z = make({-5, -1, 0, 1, 5}, {5});
+    Tensor r = z.relu();
+    const float er[] = {0, 0, 0, 1, 5};
+    for (int i = 0; i < 5; i++)
+        EXPECT_EQ(r.data[i], er[i])
+            << "[TC-Arithmetic-009] Possible issue: threshold in Tensor::relu.";
+
+    // sum
+    Tensor m = make({1, 2, 3, 4, 5, 6}, {2, 3});
+    Tensor sm = m.sum();
+    ASSERT_EQ(sm.size, 1u)
+        << "[TC-Arithmetic-009] Possible issue: result shape in Tensor::sum.";
+    EXPECT_EQ(sm.data[0], 21.0f)
+        << "[TC-Arithmetic-009] Possible issue: reduction in Tensor::sum.";
+    Tensor one = make({3.5f}, {1});
+    EXPECT_EQ(one.sum().data[0], 3.5f)
+        << "[TC-Arithmetic-009] Possible issue: single-element reduction in Tensor::sum.";
+
+    // equal shape test
+    EXPECT_EQ(m.relu().shape, (std::vector<int>{2, 3}))
+        << "[TC-Arithmetic-009] Possible issue: shape propagation in Tensor::relu.";
+    EXPECT_EQ(m.pow(2.0f).shape, (std::vector<int>{2, 3}))
+        << "[TC-Arithmetic-009] Possible issue: shape propagation in Tensor::pow.";
+    EXPECT_EQ(sm.shape, (std::vector<int>{1}))
+        << "[TC-Arithmetic-009] Possible issue: reduced shape in Tensor::sum.";
+}

@@ -46,6 +46,7 @@ inline void seed(Tensor &tensor, float value = 1.0f)
         tensor.grad[i] = value;
 }
 
+// naive mat multiply for evaluate the effectiveness of TensorGrad MatMul
 inline std::vector<float> refMatmul(const std::vector<float> &a,
                                     const std::vector<float> &b,
                                     int rowsA, int inner, int colsB)
