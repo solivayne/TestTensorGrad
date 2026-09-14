@@ -637,7 +637,7 @@ Tensor Tensor::operator*(const Tensor &other) const
         Tensor Bt = other_ptr->transpose();
         Tensor dA = dC * Bt;
         Tensor dB = At * dC;
-
+/*
 #pragma omp parallel for
         for (size_t i = 0; i < self->size; i++)
         {
@@ -645,10 +645,41 @@ Tensor Tensor::operator*(const Tensor &other) const
         }
 
 #pragma omp parallel for
-        for (size_t i = 0; i < other_ptr->size; i++)
+
+	for (size_t i = 0; i < other_ptr->size; i++)
         {
             other_ptr->grad[i] += dB.data[i];
         }
+*/
+	// The original linear accumulation is incorrect for broadcasted or
+        // non-contiguous operands. It drops repeated batch contributions when
+        // dA/dB are larger than the operand storage, and it ignores source
+        // strides for views such as transpose(). A naive parallel loop is also
+        // unsafe because stride-zero axes reduce multiple values into one slot.
+        //
+        // Original implementation kept for comparison:
+        // #pragma omp parallel for
+        // for (size_t i = 0; i < self->size; i++) {
+        //     self->grad[i] += dA.data[i];
+        // }
+        //
+        // #pragma omp parallel for
+        // for (size_t i = 0; i < other_ptr->size; i++) {
+        //     other_ptr->grad[i] += dB.data[i];
+        // }
+
+        // Scatter by source strides; stride-zero batch axes reduce by addition.
+        auto accumulate = [](const Tensor& src, const Tensor& dst) {
+            Tensor view = dst.broadcastTo(src.shape);
+            for (size_t i = 0; i < src.size; ++i) {
+                size_t offset = 0;
+                for (size_t j = 0; j < src.shape.size(); ++j)
+                    offset += ((i / src.strides[j]) % src.shape[j]) * view.strides[j];
+                dst.grad[offset] += src.data[i];
+            }
+        };
+        accumulate(dA, *self);
+        accumulate(dB, *other_ptr);
     };
 
     result._op = "*";
