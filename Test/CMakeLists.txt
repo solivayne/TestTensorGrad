@@ -17,6 +17,7 @@ add_executable(tests
     test_arithmetic.cpp
     test_autograd.cpp
     test_arena.cpp
+    test_autograd.cpp
     # test_nn.cpp
 )
 
