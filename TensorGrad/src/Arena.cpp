@@ -47,7 +47,7 @@ float *Arena::allocate(size_t numElements, Device device)
             }
         }
 
-        float *ptr = gpuMemory + gpuOffset;
+        float *ptr = gpuMemory + gpuOffset; // overlook gpu offset, fixed now
         gpuOffset += numElements;
         return ptr;
     }

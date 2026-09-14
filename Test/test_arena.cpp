@@ -72,7 +72,7 @@ TEST_F(ArenaTest, TC_Arena_002)
     ASSERT_NO_THROW(cFull = a.allocate(32, Device::CPU))
         << "[TC-Arena-002] Possible issue: capacity check boundary in Arena::allocate (CPU).";
     ASSERT_NE(cFull, nullptr);
-    float *cEnd = a.allocate(0, Device::CPU); // 用满后的当前位置
+    float *cEnd = a.allocate(0, Device::CPU); // offset is 32
     EXPECT_THROW(a.allocate(1, Device::CPU), std::runtime_error)
         << "[TC-Arena-002] Possible issue: capacity check in Arena::allocate (CPU).";
     EXPECT_EQ(a.allocate(0, Device::CPU), cEnd)
