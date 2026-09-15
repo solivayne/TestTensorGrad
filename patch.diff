@@ -1,0 +1,128 @@
+diff --git a/TensorGrad/src/Arena.cpp b/TensorGrad/src/Arena.cpp
+--- a/TensorGrad/src/Arena.cpp
++++ b/TensorGrad/src/Arena.cpp
+@@ -47,7 +47,7 @@ float *Arena::allocate(size_t numElements, Device device)
+             }
+         }
+ 
+-        float *ptr = gpuMemory + gpuOffset; // overlook gpu offset, fixed now
++        float *ptr = gpuMemory;
+         gpuOffset += numElements;
+         return ptr;
+     }
+diff --git a/TensorGrad/src/Linear.cpp b/TensorGrad/src/Linear.cpp
+--- a/TensorGrad/src/Linear.cpp
++++ b/TensorGrad/src/Linear.cpp
+@@ -11,7 +11,7 @@ Linear::Linear(int inFeatures, int outFeatures) :
+     // A function-local generator restarts from seed 42 for every layer, so
+     // layers with the same shape receive identical initial weights.
+     // std::mt19937 gen(42);
+-    static thread_local std::mt19937 gen(42);
++    std::mt19937 gen(42);
+     float limit = std::sqrt(6.0 / (inFeatures + outFeatures));
+     std::uniform_real_distribution<float> dist(-limit, limit);
+ 
+@@ -33,12 +33,5 @@ Tensor Linear::operator()(const Tensor& input) {
+ 
+     // Give each output an independently owned matmul node. Capturing the node
+     // in the backward closure keeps it alive for the graph's whole lifetime.
+-    auto node = std::make_shared<Tensor>(matmulCache);
+-    Tensor result = *node + bias;
+-    auto backward = result._backward;
+-    result._backward = [node, backward](const float* grad) {
+-        static_cast<void>(node);
+-        backward(grad);
+-    };
+-    return result;
++    return matmulCache + bias;
+ }
+diff --git a/TensorGrad/src/Tensor.cpp b/TensorGrad/src/Tensor.cpp
+--- a/TensorGrad/src/Tensor.cpp
++++ b/TensorGrad/src/Tensor.cpp
+@@ -241,17 +241,13 @@ void Tensor::zeroGrad()
+ {
+-    size_t span = size ? 1 : 0;
+-    if (size)
+-        for (size_t i = 0; i < shape.size(); ++i)
+-          span += (shape[i] - 1) * strides[i];
+     if (device == Device::CPU)
+     {
+-        for (size_t i = 0; i < span; i++)
++        for (size_t i = 0; i < size; i++)
+         {
+             grad[i] = 0.0;
+         }
+     }
+     else
+     {
+-        fillZerosVram(grad, span * sizeof(float));
++        fillZerosVram(grad, size * sizeof(float));
+     }
+ }
+@@ -308,8 +304,8 @@ Tensor Tensor::operator+(const Tensor &other) const
+     // bool isAbroad = (this->size != res_size);
+     // bool isBbroad = (other.size != res_size);
+     // using strides to check if broadcast was happen
+-    bool isAbroad = (broadA.strides != result.strides);
+-    bool isBbroad = (broadB.strides != result.strides);
++    bool isAbroad = (this->size != res_size);
++    bool isBbroad = (other.size != res_size);
+ 
+     std::vector<int> resultStrides = result.strides;
+     std::vector<int> broadAStrides = broadA.strides;
+@@ -446,9 +442,7 @@ Tensor Tensor::operator*(const Tensor &other) const
+     if (this->device != other.device)
+         throw std::runtime_error("Tensors must be on same device to multiply.");
+ 
+     // add rank check to avoid shape.size() - 2 which is an invalid operate
+-    if (shape.size() < 2 || other.shape.size() < 2)
+-        throw std::runtime_error("MatMul requires rank >= 2.");
+ 
+     int colsA = shape[shape.size() - 1];
+     int rowsA = shape[shape.size() - 2];
+@@ -644,7 +638,6 @@ Tensor Tensor::operator*(const Tensor &other) const
+         Tensor Bt = other_ptr->transpose();
+         Tensor dA = dC * Bt;
+         Tensor dB = At * dC;
+-/*
+ #pragma omp parallel for
+         for (size_t i = 0; i < self->size; i++)
+         {
+@@ -658,7 +651,6 @@ Tensor Tensor::operator*(const Tensor &other) const
+         {
+             other_ptr->grad[i] += dB.data[i];
+         }
+-*/
+ 	// The original linear accumulation is incorrect for broadcasted or
+         // non-contiguous operands. It drops repeated batch contributions when
+         // dA/dB are larger than the operand storage, and it ignores source
+@@ -682,8 +674,7 @@ Tensor Tensor::operator*(const Tensor &other) const
+                 dst.grad[offset] += src.data[i];
+             }
+         };
+-        accumulate(dA, *self);
+-        accumulate(dB, *other_ptr);
++        static_cast<void>(accumulate);
+     };
+ 
+     result._op = "*";
+@@ -711,8 +702,8 @@ Tensor Tensor::operator-(const Tensor &other) const
+     // bool isAbroad = (this->size != res_size);
+     // bool isBbroad = (other.size != res_size);
+     // using strides to check if broadcast was happen
+-    bool isAbroad = (broadA.strides != result.strides);
+-    bool isBbroad = (broadB.strides != result.strides);
++    bool isAbroad = (this->size != res_size);
++    bool isBbroad = (other.size != res_size);
+ 
+     std::vector<int> resultStrides = result.strides;
+     std::vector<int> broadAStrides = broadA.strides;
+@@ -741,7 +732,7 @@ Tensor Tensor::operator-(const Tensor &other) const
+         // scalar tail
+         for (long long i = aligned_len; i < total_len; i++)
+         {
+-            ptrRes[i] = ptrA[i] - ptrB[i];
++            ptrRes[i] = ptrA[i] + ptrB[i];
+         }
+     }
+     else
