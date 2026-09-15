@@ -13,10 +13,10 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 
 add_executable(tests
+    test_tensor.cpp
     test_arithmetic.cpp
     test_autograd.cpp
     test_arena.cpp
-    test_autograd.cpp
     test_nn.cpp
 )
 
