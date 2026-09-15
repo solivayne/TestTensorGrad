@@ -240,16 +240,20 @@ Tensor Tensor::broadcastTo(const std::vector<int> &targetShape) const
 
 void Tensor::zeroGrad()
 {
+    size_t span = size ? 1 : 0;
+    if (size)
+        for (size_t i = 0; i < shape.size(); ++i)
+          span += (shape[i] - 1) * strides[i];
     if (device == Device::CPU)
     {
-        for (size_t i = 0; i < size; i++)
+        for (size_t i = 0; i < span; i++)
         {
             grad[i] = 0.0;
         }
     }
     else
     {
-        fillZerosVram(grad, size * sizeof(float));
+        fillZerosVram(grad, span * sizeof(float));
     }
 }
 
